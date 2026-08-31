@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AutoTint/AutoTint.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AutoTint.Tests/AutoTint.Tests.csproj" />
+  </Folder>
+</Solution>

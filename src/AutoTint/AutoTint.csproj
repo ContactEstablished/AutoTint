@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <!-- Disabled deliberately: this project references both WPF and WinForms (for NotifyIcon).
+         Implicit global usings would make Application, MessageBox, Point, Size, Color and
+         Cursors ambiguous between System.Windows.* and System.Windows.Forms.*. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>AutoTint</AssemblyName>
+    <RootNamespace>AutoTint</RootNamespace>
+    <Version>0.1.0</Version>
+    <ApplicationIcon>Resources/autotint.ico</ApplicationIcon>
+    <!-- Required by the LibraryImport source generator used for P/Invoke. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- WFO0003 tells WinForms apps to set DPI awareness via ApplicationHighDpiMode instead
+         of the manifest. This is a WPF app that only borrows WinForms for NotifyIcon; WPF
+         reads DPI awareness from the manifest, so the manifest is the correct home for it. -->
+    <NoWarn>WFO0003</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The interesting logic is internal; the test project needs to see it. -->
+    <InternalsVisibleTo Include="AutoTint.Tests" />
+  </ItemGroup>
+
+</Project>
