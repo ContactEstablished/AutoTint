@@ -38,6 +38,9 @@ internal sealed class AppSettings
 
     public bool HotkeyEnabled { get; set; } = true;
 
+    /// <summary>Whether the panel lines itself up with the window beneath it.</summary>
+    public bool AutoSnap { get; set; }
+
     /// <summary>Derived, so it has no business being written to the file.</summary>
     [JsonIgnore]
     public bool HasBounds =>

@@ -43,12 +43,38 @@ tint, so you can always find your way back.
 | Panel edges & corners | Drag to resize |
 | ⏻ | Tint off and back on, returning to the same strength |
 | ☀ | Show or hide the settings |
+| ⛶ | Auto-snap: line the panel up with the window beneath it |
 | Slider | Tint strength, 0–90% |
 | Swatches | Neutral black, warm amber, soft grey |
 | 👁 | Hide the tint from screen sharing |
 | ⚙ | Reset position, or quit |
 | Scroll wheel over the tab | Nudge strength by 5% |
 | **Alt+Shift+T** | Toggle from anywhere, even while the meeting app has focus |
+
+## Auto-snap
+
+Lining a panel up with a window by hand is fiddly. Turn auto-snap on and the panel finds
+the window underneath it and fits itself to that window exactly — then **stays attached**,
+following it as it is moved or resized, until you drag the panel somewhere else or the
+window goes away.
+
+<p align="center">
+  <img src="docs/autosnap.png" alt="Before and after turning auto-snap on" width="900">
+</p>
+
+It pairs well with the pop-out view in Teams and Zoom: pop the offending person into their
+own window, and the tint wraps precisely to it.
+
+Behind this is a detail worth knowing if you ever build something similar. The obvious call,
+`GetWindowRect`, reports a rectangle noticeably larger than the window you can see, because
+Windows 10 and 11 include an invisible resize border of roughly 7px per side. On a test
+window it reported `300,200 1200×800` where the visible frame was `307,200 1186×793`.
+Snapping to that would leave the tint overhanging on three sides, so AutoTint asks DWM for
+`DWMWA_EXTENDED_FRAME_BOUNDS` instead.
+
+If there is nothing snappable underneath — bare desktop, the taskbar, a window too small to
+be meant — the panel stays exactly where you dropped it and the snap button blinks, so the
+stillness reads as *looked, found nothing* rather than as a dead button.
 
 ## Good to know
 
@@ -68,7 +94,7 @@ Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
 dotnet run --project src/AutoTint    # run it
-dotnet test                          # 40 unit tests
+dotnet test                          # 56 unit tests
 ```
 
 ### Publishing
@@ -107,7 +133,7 @@ cursor is over something interactive. A 60 Hz cursor poll drives the switch and 
 down during a native drag or resize (`WM_ENTERSIZEMOVE` / `WM_EXITSIZEMOVE`), so a gesture
 is never dropped when the cursor outruns the grab band.
 
-Two smaller details that are easy to get wrong:
+Three smaller details that are easy to get wrong:
 
 - Tint opacity is set on the tint `Border`, **never** on the `Window`. Window-level opacity
   would dim the tab too, and the tab has to stay readable at 0% so the tint can be switched
@@ -115,6 +141,9 @@ Two smaller details that are easy to get wrong:
 - `ResizeMode="CanResize"` is required even though there is no visible border. It keeps
   `WS_THICKFRAME` on the window, and without that style Windows ignores the resize
   hit-test codes entirely and edge-dragging silently does nothing.
+- The 8px corner rounding is drawn, not inherited. Windows 11 rounds ordinary top-level
+  windows itself, but a layered per-pixel-transparent window has no frame for DWM to round,
+  so square corners are what you get unless you draw the curve.
 
 Window bounds are persisted in physical pixels via `GetWindowRect`/`SetWindowPos` rather
 than WPF's device-independent `Left`/`Top`/`Width`/`Height`, because round-tripping those
@@ -126,8 +155,8 @@ size.
 ```
 src/AutoTint/
   Views/      OverlayWindow — chrome, hit-test hook, state — and its styles
-  Interop/    P/Invoke, hit-test resolver, click-through, global hotkey
-  Services/   settings persistence, bounds validation, tray icon
+  Interop/    P/Invoke, hit-test resolver, click-through, hotkey, window discovery
+  Services/   settings, bounds validation, tray icon, auto-snap
   Models/     AppSettings, TintPreset
 tests/AutoTint.Tests/
 ```
@@ -143,9 +172,8 @@ Two environment variables, for development:
 
 ## Not there yet
 
-Auto-hiding tab · multiple panels · start with Windows · snap to the window under the
-cursor · scheduled or automatic tinting, which is what the *Auto* in the name is holding
-a place for.
+Auto-hiding tab · multiple panels · start with Windows · scheduled or automatic tinting,
+which is what the *Auto* in the name is still holding a place for.
 
 ---
 

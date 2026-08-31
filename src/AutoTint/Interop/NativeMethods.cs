@@ -50,6 +50,18 @@ internal static partial class NativeMethods
     /// <summary>The four-way move cursor.</summary>
     internal const int IDC_SIZEALL = 32646;
 
+    /// <summary>GetAncestor: walk up to the top-level owner window.</summary>
+    internal const uint GA_ROOT = 2;
+
+    /// <summary>
+    /// The window rectangle as drawn, excluding the invisible resize border that
+    /// GetWindowRect reports (roughly 7px per side on Windows 10 and 11).
+    /// </summary>
+    internal const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+
+    /// <summary>Non-zero when a window is cloaked -- present but not really shown.</summary>
+    internal const int DWMWA_CLOAKED = 14;
+
     /// <summary>MonitorFromPoint returns NULL when the point is on no monitor at all.</summary>
     internal const uint MONITOR_DEFAULTTONULL = 0x00000000;
 
@@ -105,6 +117,46 @@ internal static partial class NativeMethods
 
     [LibraryImport("user32.dll")]
     internal static partial IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [LibraryImport("user32.dll")]
+    internal static partial IntPtr WindowFromPoint(POINT Point);
+
+    [LibraryImport("user32.dll")]
+    internal static partial IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsWindow(IntPtr hWnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsWindowVisible(IntPtr hWnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool IsIconic(IntPtr hWnd);
+
+    [LibraryImport("user32.dll")]
+    internal static partial uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClassNameW", SetLastError = true)]
+    private static unsafe partial int GetClassNameRaw(IntPtr hWnd, char* lpClassName, int nMaxCount);
+
+    [LibraryImport("dwmapi.dll")]
+    internal static partial int DwmGetWindowAttribute(
+        IntPtr hwnd, int dwAttribute, out RECT pvAttribute, int cbAttribute);
+
+    [LibraryImport("dwmapi.dll", EntryPoint = "DwmGetWindowAttribute")]
+    internal static partial int DwmGetWindowAttributeInt(
+        IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+
+    internal static unsafe string GetClassNameOf(IntPtr hWnd)
+    {
+        const int capacity = 256;
+        char* buffer = stackalloc char[capacity];
+        int length = GetClassNameRaw(hWnd, buffer, capacity);
+        return length > 0 ? new string(buffer, 0, length) : string.Empty;
+    }
 
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

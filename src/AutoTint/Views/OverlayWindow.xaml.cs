@@ -6,6 +6,8 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using AutoTint.Interop;
 using AutoTint.Models;
 using AutoTint.Services;
@@ -25,6 +27,7 @@ public partial class OverlayWindow : Window
 
     private HwndSource? _source;
     private ClickThroughController? _clickThrough;
+    private SnapController? _snap;
     private GlobalHotkey? _hotkey;
     private IntPtr _hwnd;
     private IntPtr _moveCursor;
@@ -43,6 +46,7 @@ public partial class OverlayWindow : Window
 
         PowerButton.Click += (_, _) => ToggleTint();
         ExpandButton.Click += (_, _) => SetExpanded(SettingsPanel.Visibility != Visibility.Visible);
+        SnapButton.Click += (_, _) => SetAutoSnap(!(_snap?.IsEnabled ?? false));
         CaptureButton.Click += (_, _) => SetCaptureProtection(!_captureProtected);
         MenuButton.Click += (_, _) => ShowMenu();
 
@@ -92,7 +96,15 @@ public partial class OverlayWindow : Window
         _clickThrough = new ClickThroughController(_hwnd, IsInteractiveAt);
         _clickThrough.Start();
 
+        _snap = new SnapController(_hwnd, PanelBoundsPx, TabHeightPx, MinimumSizePx, ApplyBoundsPx);
+        _snap.NoTargetFound += FlashSnapButton;
+
         SetCaptureProtection(_settings.HideFromCapture);
+
+        // Deferred: snapping needs the tab's measured height, which layout has not produced yet.
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            new Action(() => SetAutoSnap(_settings.AutoSnap)));
 
         if (_settings.HotkeyEnabled)
         {
@@ -127,6 +139,7 @@ public partial class OverlayWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _hotkey?.Dispose();
+        _snap?.Dispose();
         _clickThrough?.Dispose();
         _source?.RemoveHook(WndProc);
         base.OnClosed(e);
@@ -193,6 +206,7 @@ public partial class OverlayWindow : Window
         _settings.StrengthBeforeOff = _strengthBeforeOff;
         _settings.Expanded = SettingsPanel.Visibility == Visibility.Visible;
         _settings.HideFromCapture = _captureProtected;
+        _settings.AutoSnap = _snap?.IsEnabled ?? false;
         _settings.ColourId = CurrentColourId();
 
         _store.Save(_settings);
@@ -311,6 +325,60 @@ public partial class OverlayWindow : Window
         return true;
     }
 
+    // ---- Auto-snap --------------------------------------------------------------------
+
+    private void SetAutoSnap(bool enabled)
+    {
+        if (_snap is null) return;
+
+        _snap.SetEnabled(enabled);
+        SnapButton.Background = enabled
+            ? (Brush)FindResource("TabSunkenBrush")
+            : Brushes.Transparent;
+        SnapButton.ToolTip = enabled
+            ? "Auto-snap on -- the panel follows the window beneath it"
+            : "Auto-snap off -- position the panel yourself";
+
+        Persist();
+    }
+
+    /// <summary>
+    /// A snap was attempted with nothing suitable underneath. Blink the button so the
+    /// absence of movement reads as "looked, found nothing" rather than as a dead control.
+    /// </summary>
+    private void FlashSnapButton()
+    {
+        SnapButton.BeginAnimation(OpacityProperty, new DoubleAnimation
+        {
+            From = 1.0,
+            To = 0.2,
+            Duration = TimeSpan.FromMilliseconds(130),
+            AutoReverse = true,
+            RepeatBehavior = new RepeatBehavior(2),
+            FillBehavior = FillBehavior.Stop,
+        });
+    }
+
+    private NativeMethods.RECT PanelBoundsPx()
+    {
+        NativeMethods.GetWindowRect(_hwnd, out NativeMethods.RECT bounds);
+        return bounds;
+    }
+
+    private int TabHeightPx() =>
+        (int)Math.Round(TabSurface.ActualHeight * VisualTreeHelper.GetDpi(this).DpiScaleY);
+
+    private (int Width, int Height) MinimumSizePx()
+    {
+        DpiScale dpi = VisualTreeHelper.GetDpi(this);
+        return ((int)Math.Round(MinWidth * dpi.DpiScaleX), (int)Math.Round(MinHeight * dpi.DpiScaleY));
+    }
+
+    private void ApplyBoundsPx(SnapBounds bounds) =>
+        NativeMethods.SetWindowPos(
+            _hwnd, IntPtr.Zero, bounds.Left, bounds.Top, bounds.Width, bounds.Height,
+            NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+
     // ---- Win32 ------------------------------------------------------------------------
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -342,10 +410,14 @@ public partial class OverlayWindow : Window
 
             case NativeMethods.WM_ENTERSIZEMOVE:
                 _clickThrough?.SuspendForSizeMove();
+                _snap?.Suspend();
                 return IntPtr.Zero;
 
             case NativeMethods.WM_EXITSIZEMOVE:
                 _clickThrough?.ResumeAfterSizeMove();
+                // The panel has just been dropped somewhere new, so it looks for a new
+                // window to line up with rather than returning to its previous one.
+                _snap?.ResumeAndRetarget();
                 return IntPtr.Zero;
 
             default:
