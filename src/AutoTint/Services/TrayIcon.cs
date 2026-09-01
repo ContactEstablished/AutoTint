@@ -15,8 +15,9 @@ internal sealed class TrayIcon : IDisposable
     private readonly Forms.NotifyIcon _icon;
     private readonly Forms.ToolStripMenuItem _toggleItem;
     private readonly Forms.ToolStripMenuItem _captureItem;
+    private readonly Forms.ToolStripMenuItem _startupItem;
 
-    internal TrayIcon()
+    internal TrayIcon(string version)
     {
         _toggleItem = new Forms.ToolStripMenuItem("Turn tint off");
         _toggleItem.Click += (_, _) => ToggleRequested?.Invoke();
@@ -31,6 +32,12 @@ internal sealed class TrayIcon : IDisposable
         };
         _captureItem.CheckedChanged += (_, _) => CaptureProtectionChanged?.Invoke(_captureItem.Checked);
 
+        _startupItem = new Forms.ToolStripMenuItem("Start with Windows")
+        {
+            CheckOnClick = true,
+        };
+        _startupItem.CheckedChanged += (_, _) => StartWithWindowsChanged?.Invoke(_startupItem.Checked);
+
         var quitItem = new Forms.ToolStripMenuItem("Quit AutoTint");
         quitItem.Click += (_, _) => QuitRequested?.Invoke();
 
@@ -39,13 +46,14 @@ internal sealed class TrayIcon : IDisposable
         menu.Items.Add(resetItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(_captureItem);
+        menu.Items.Add(_startupItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(quitItem);
 
         _icon = new Forms.NotifyIcon
         {
             Icon = LoadAppIcon(),
-            Text = "AutoTint",
+            Text = $"AutoTint {version}",
             Visible = true,
             ContextMenuStrip = menu,
         };
@@ -61,10 +69,17 @@ internal sealed class TrayIcon : IDisposable
 
     internal event Action<bool>? CaptureProtectionChanged;
 
+    internal event Action<bool>? StartWithWindowsChanged;
+
     /// <summary>Keeps the menu wording honest about what clicking it will do.</summary>
     internal void SetTintOn(bool on)
     {
         _toggleItem.Text = on ? "Turn tint off" : "Turn tint on";
+    }
+
+    internal void SetStartWithWindows(bool enabled)
+    {
+        if (_startupItem.Checked != enabled) _startupItem.Checked = enabled;
     }
 
     internal void SetCaptureProtection(bool enabled)

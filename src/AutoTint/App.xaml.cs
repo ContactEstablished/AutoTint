@@ -40,15 +40,19 @@ public partial class App : System.Windows.Application
         _overlay = new OverlayWindow(settings, _store);
         _overlay.Show();
 
-        _tray = new TrayIcon();
+        _tray = new TrayIcon(OverlayWindow.AppVersion);
         _tray.ToggleRequested += () => _overlay.ToggleTint();
         _tray.ResetRequested += () => _overlay.ResetBounds();
         _tray.QuitRequested += Shutdown;
         _tray.CaptureProtectionChanged += enabled => _overlay.SetCaptureProtection(enabled);
 
+        _tray.StartWithWindowsChanged += enabled => _overlay.SetRunAtLogon(enabled);
+
         _overlay.TintStateChanged += on => _tray.SetTintOn(on);
+        _overlay.RunAtLogonChanged += enabled => _tray.SetStartWithWindows(enabled);
         _tray.SetTintOn(_overlay.IsTintOn);
         _tray.SetCaptureProtection(settings.HideFromCapture);
+        _tray.SetStartWithWindows(_overlay.RunsAtLogon);
 
         if (settings.HotkeyEnabled && !_overlay.HotkeyRegistered)
         {

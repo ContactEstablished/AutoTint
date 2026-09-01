@@ -12,7 +12,8 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4" alt="Windows 10 or 11">
   <img src="https://img.shields.io/badge/.NET-10-512BD4" alt=".NET 10">
-  <img src="https://img.shields.io/badge/download-234%20KB-2D6CD1" alt="234 KB">
+  <img src="https://img.shields.io/badge/version-1.0.0-2D6CD1" alt="version 1.0.0">
+  <img src="https://img.shields.io/badge/download-251%20KB-2D6CD1" alt="251 KB">
 </p>
 
 ---
@@ -48,7 +49,7 @@ tint, so you can always find your way back.
 | Slider | Tint strength, 0–90% — or, with auto-adjust on, how bright to leave things |
 | Swatches | Neutral black, warm amber, soft grey |
 | 👁 | Hide the tint from screen sharing |
-| ⚙ | Reset position, or quit |
+| ⚙ | Start with Windows, reset position, or quit |
 | Scroll wheel over the tab | Nudge strength by 5% |
 | **Alt+Shift+T** | Toggle from anywhere, even while the meeting app has focus |
 
@@ -133,19 +134,50 @@ it as dark and applies no tint. It fails safe, but it does fail.
   are saved to `%APPDATA%\AutoTint\settings.json`. If the monitor it was last on has been
   unplugged, it recovers to a centred default instead of opening out of reach.
 
-## Getting it running
+## Installing
+
+```powershell
+powershell -ExecutionPolicy Bypass -File install\Install.ps1
+```
+
+Everything it does is **per-user — no administrator rights, nothing outside your profile**:
+
+- builds a fresh release and installs it to `%LOCALAPPDATA%\Programs\AutoTint`
+- adds a Start Menu shortcut
+- registers it so it appears in **Settings › Installed apps** with a working uninstall
+- sets it to start with Windows — pass `-NoAutostart` to skip that
+
+Start-with-Windows uses the per-user `Run` key, which is what Slack, Spotify and Teams do,
+so AutoTint appears in **Task Manager › Startup apps** and can be disabled there like
+anything else. You can also toggle it from the ⚙ menu or the tray icon, and the app reads
+the registry each time rather than trusting a cached copy — so if you switch it off in Task
+Manager, the tick follows.
+
+To remove it, use Settings › Installed apps, or:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\Programs\AutoTint\Uninstall.ps1"
+```
+
+Your saved settings survive an uninstall so a reinstall puts the panel back where it was;
+add `-RemoveSettings` if you want them gone too.
+
+Needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
+The installer warns if it is missing.
+
+## Building from source
 
 Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
 dotnet run --project src/AutoTint    # run it
-dotnet test                          # 76 unit tests
+dotnet test                          # 89 unit tests
 ```
 
-### Publishing
+### Publishing by hand
 
 ```bash
-# One 234 KB exe. Needs the .NET 10 Desktop Runtime installed.
+# One 251 KB exe. Needs the .NET 10 Desktop Runtime installed.
 dotnet publish src/AutoTint -c Release -r win-x64 --self-contained false \
   -p:PublishSingleFile=true -o publish/portable
 
@@ -201,8 +233,9 @@ size.
 src/AutoTint/
   Views/      OverlayWindow — chrome, hit-test hook, state — and its styles
   Interop/    P/Invoke, hit-test resolver, click-through, hotkey, window and screen reading
-  Services/   settings, bounds validation, tray icon, auto-snap, auto-adjust
+  Services/   settings, bounds validation, tray icon, auto-snap, auto-adjust, autostart
   Models/     AppSettings, TintPreset
+install/      per-user install and uninstall scripts
 tests/AutoTint.Tests/
 ```
 
@@ -217,8 +250,8 @@ Two environment variables, for development:
 
 ## Not there yet
 
-Auto-hiding tab · multiple panels · start with Windows · tinting on a schedule or by time
-of day · adjusting the tint *colour* automatically as well as its strength.
+Auto-hiding tab · multiple panels · tinting on a schedule or by time of day · adjusting the
+tint *colour* automatically as well as its strength.
 
 ---
 

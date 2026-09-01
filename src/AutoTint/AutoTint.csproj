@@ -13,7 +13,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>AutoTint</AssemblyName>
     <RootNamespace>AutoTint</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>1.0.0</Version>
+    <Company>Matthew Wilson</Company>
+    <Product>AutoTint</Product>
+    <Description>Dim a too-bright window during video calls</Description>
     <ApplicationIcon>Resources/autotint.ico</ApplicationIcon>
     <!-- Required by the LibraryImport source generator used for P/Invoke. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

@@ -1,5 +1,6 @@
 using System;
 using System.Globalization;
+using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -86,6 +87,30 @@ public partial class OverlayWindow : Window
     /// <summary>Raised when the tint is switched on or off, so the tray label can follow.</summary>
     internal event Action<bool>? TintStateChanged;
 
+    /// <summary>Raised when start-with-Windows changes, so the tray tick can follow.</summary>
+    internal event Action<bool>? RunAtLogonChanged;
+
+    /// <summary>Read from the registry every time; Task Manager can change it behind us.</summary>
+    internal bool RunsAtLogon => StartupRegistration.IsEnabled();
+
+    internal static string AppVersion
+    {
+        get
+        {
+            string? informational = Assembly.GetExecutingAssembly()
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+
+            if (!string.IsNullOrWhiteSpace(informational))
+            {
+                // The SDK may append build metadata, as in "1.0.0+2c1f9ab".
+                int plus = informational.IndexOf('+');
+                return plus > 0 ? informational[..plus] : informational;
+            }
+
+            return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "1.0.0";
+        }
+    }
+
     internal bool IsTintOn => IsAutoOn ? _tintEnabled : OpacitySlider.Value > 0;
 
     private bool IsAutoOn => _autoLevel?.IsEnabled == true;
@@ -153,6 +178,10 @@ public partial class OverlayWindow : Window
             _hotkey = new GlobalHotkey(_hwnd);
             HotkeyRegistered = _hotkey.TryRegister();
         }
+
+        // If this copy was installed over one that ran from somewhere else, the logon entry
+        // would still point at the old executable.
+        StartupRegistration.RepairIfStale();
 
         Diagnostics.DumpWindowState(_hwnd, this);
         _restoring = false;
@@ -376,17 +405,42 @@ public partial class OverlayWindow : Window
             Placement = PlacementMode.Top,
         };
 
+        var startup = new MenuItem
+        {
+            Header = "Start with Windows",
+            IsCheckable = true,
+            IsChecked = RunsAtLogon,
+        };
+        startup.Click += (_, _) => SetRunAtLogon(startup.IsChecked);
+        menu.Items.Add(startup);
+
         var reset = new MenuItem { Header = "Reset size and position" };
         reset.Click += (_, _) => ResetBounds();
         menu.Items.Add(reset);
 
         menu.Items.Add(new Separator());
 
+        menu.Items.Add(new MenuItem
+        {
+            Header = string.Create(CultureInfo.CurrentCulture, $"AutoTint {AppVersion}"),
+            IsEnabled = false,
+        });
+
         var quit = new MenuItem { Header = "Quit AutoTint" };
         quit.Click += (_, _) => System.Windows.Application.Current.Shutdown();
         menu.Items.Add(quit);
 
         menu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Turns the logon entry on or off. The result is read back from the registry rather
+    /// than assumed, so a write that silently failed cannot leave the tick lying.
+    /// </summary>
+    internal void SetRunAtLogon(bool enabled)
+    {
+        StartupRegistration.SetEnabled(enabled);
+        RunAtLogonChanged?.Invoke(RunsAtLogon);
     }
 
     internal void ResetBounds()
