@@ -42,7 +42,7 @@ tint, so you can always find your way back.
 | Dot grip | Drag to move the panel |
 | Panel edges & corners | Drag to resize |
 | ⏻ | Tint off and back on, returning to the same strength |
-| ☀ | Show or hide the settings |
+| ⤡ ⤢ | Show or hide the settings |
 | ⛶ | Auto-snap: line the panel up with the window beneath it |
 | ◐ | Auto-adjust: set the tint from how bright the content actually is |
 | Slider | Tint strength, 0–90% — or, with auto-adjust on, how bright to leave things |

@@ -22,6 +22,14 @@ public partial class OverlayWindow : Window
     /// <summary>How far one notch of the scroll wheel moves the tint.</summary>
     private const double WheelStep = 5;
 
+    /// <summary>
+    /// Arrows pointing outward to open the settings, inward to close them. The button
+    /// always shows the action it will perform rather than the state it is in.
+    /// </summary>
+    private const string ExpandGlyph = "";
+
+    private const string CollapseGlyph = "";
+
     private readonly AppSettings _settings;
     private readonly SettingsStore _store;
 
@@ -199,6 +207,7 @@ public partial class OverlayWindow : Window
         // Only the visibility here. Saved bounds already account for the taller tab, and
         // SetExpanded would add that height a second time.
         SettingsPanel.Visibility = _settings.Expanded ? Visibility.Visible : Visibility.Collapsed;
+        UpdateExpandButton(_settings.Expanded);
         if (_settings.Expanded && !_settings.HasBounds) SetExpanded(true);
     }
 
@@ -348,8 +357,15 @@ public partial class OverlayWindow : Window
     {
         double before = TabSurface.ActualHeight;
         SettingsPanel.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        UpdateExpandButton(expanded);
         TabSurface.UpdateLayout();
         Height += TabSurface.ActualHeight - before;
+    }
+
+    private void UpdateExpandButton(bool expanded)
+    {
+        ExpandButton.Content = expanded ? CollapseGlyph : ExpandGlyph;
+        ExpandButton.ToolTip = expanded ? "Hide settings" : "Show settings";
     }
 
     private void ShowMenu()

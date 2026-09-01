@@ -66,23 +66,17 @@
                             ToolTip="Turn the tint off and on (Alt+Shift+T)" />
                     <Button x:Name="ExpandButton"
                             Style="{StaticResource TabIconButton}"
-                            Content="&#xE706;"
-                            ToolTip="Tint settings" />
+                            Content="&#xE740;"
+                            ToolTip="Show settings" />
                 </StackPanel>
 
                 <!-- Revealed by the settings button. -->
                 <StackPanel x:Name="SettingsPanel" Visibility="Collapsed" Margin="0,4,0,0">
 
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                        <TextBlock Text="&#xE706;"
-                                   FontFamily="{StaticResource IconFont}"
-                                   FontSize="12"
-                                   Foreground="{StaticResource MutedOnTabBrush}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0" />
                         <Slider x:Name="OpacitySlider"
                                 Style="{StaticResource TintSlider}"
-                                Width="150"
+                                Width="170"
                                 Minimum="0" Maximum="90"
                                 Value="50"
                                 ToolTip="Tint strength" />
