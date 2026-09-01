@@ -65,6 +65,16 @@ internal static partial class NativeMethods
     /// <summary>MonitorFromPoint returns NULL when the point is on no monitor at all.</summary>
     internal const uint MONITOR_DEFAULTTONULL = 0x00000000;
 
+    /// <summary>
+    /// StretchBlt sub-sampling. Measured against HALFTONE it is twice as fast and, for a
+    /// statistical reading, more faithful: HALFTONE averages fine bright detail away, while
+    /// dropping pixels preserves the distribution the percentile is taken over.
+    /// </summary>
+    internal const int STRETCH_COLORONCOLOR = 3;
+
+    internal const int SRCCOPY = 0x00CC0020;
+    internal const uint DIB_RGB_COLORS = 0;
+
     internal const uint SWP_NOSIZE = 0x0001;
     internal const uint SWP_NOZORDER = 0x0004;
     internal const uint SWP_NOACTIVATE = 0x0010;
@@ -79,6 +89,25 @@ internal static partial class NativeMethods
 
         public readonly int Width => Right - Left;
         public readonly int Height => Bottom - Top;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct BITMAPINFOHEADER
+    {
+        public int biSize;
+        public int biWidth;
+
+        /// <summary>Negative means a top-down bitmap, which keeps row order intuitive.</summary>
+        public int biHeight;
+
+        public short biPlanes;
+        public short biBitCount;
+        public int biCompression;
+        public int biSizeImage;
+        public int biXPelsPerMeter;
+        public int biYPelsPerMeter;
+        public int biClrUsed;
+        public int biClrImportant;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -100,6 +129,10 @@ internal static partial class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
 
+    [LibraryImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GetWindowDisplayAffinity(IntPtr hWnd, out uint pdwAffinity);
+
     [LibraryImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
     internal static partial IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
 
@@ -120,6 +153,40 @@ internal static partial class NativeMethods
 
     [LibraryImport("user32.dll")]
     internal static partial IntPtr WindowFromPoint(POINT Point);
+
+    [LibraryImport("user32.dll")]
+    internal static partial IntPtr GetDC(IntPtr hWnd);
+
+    [LibraryImport("user32.dll")]
+    internal static partial int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+
+    [LibraryImport("gdi32.dll")]
+    internal static partial IntPtr CreateCompatibleDC(IntPtr hdc);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DeleteDC(IntPtr hdc);
+
+    [LibraryImport("gdi32.dll")]
+    internal static partial IntPtr SelectObject(IntPtr hdc, IntPtr hObject);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool DeleteObject(IntPtr hObject);
+
+    [LibraryImport("gdi32.dll")]
+    internal static partial int SetStretchBltMode(IntPtr hdc, int mode);
+
+    [LibraryImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool StretchBlt(
+        IntPtr hdcDest, int xDest, int yDest, int wDest, int hDest,
+        IntPtr hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc, int rop);
+
+    [LibraryImport("gdi32.dll")]
+    internal static partial IntPtr CreateDIBSection(
+        IntPtr hdc, ref BITMAPINFOHEADER pbmi, uint usage,
+        out IntPtr ppvBits, IntPtr hSection, uint offset);
 
     [LibraryImport("user32.dll")]
     internal static partial IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);

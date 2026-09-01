@@ -44,7 +44,8 @@ tint, so you can always find your way back.
 | ⏻ | Tint off and back on, returning to the same strength |
 | ☀ | Show or hide the settings |
 | ⛶ | Auto-snap: line the panel up with the window beneath it |
-| Slider | Tint strength, 0–90% |
+| ◐ | Auto-adjust: set the tint from how bright the content actually is |
+| Slider | Tint strength, 0–90% — or, with auto-adjust on, how bright to leave things |
 | Swatches | Neutral black, warm amber, soft grey |
 | 👁 | Hide the tint from screen sharing |
 | ⚙ | Reset position, or quit |
@@ -76,6 +77,50 @@ If there is nothing snappable underneath — bare desktop, the taskbar, a window
 be meant — the panel stays exactly where you dropped it and the snap button blinks, so the
 stillness reads as *looked, found nothing* rather than as a dead button.
 
+## Auto-adjust
+
+Turn it on and AutoTint measures how bright the content under the panel actually is, twice
+a second, and sets the tint to match. Someone switches from a dark IDE to a blinding slide
+and the panel deepens on its own; they switch back and it eases off. With auto-adjust on,
+the slider stops setting opacity and instead sets **how bright you are willing to leave
+things** — the readout then shows the opacity it chose, as `auto 28%`.
+
+The opacity is derived, not guessed. Alpha compositing is
+`result = source × (1 − a) + tint × a`, so given a measured brightness `L`, a comfort target
+`T`, and the tint colour's own brightness `Lᵗ`:
+
+```
+a = (L − T) / (L − Lᵗ)
+```
+
+With a black tint and a target of 180, a blown-out share at `L=250` gets **28%**, a milder
+one at `L=200` gets **10%**, and content already at `L=170` gets **nothing at all**. It
+corrects for the colour presets for free — warm amber is not as dark as black, so the same
+content asks for 33% instead of 28%.
+
+What it measures is the **90th-percentile brightness**: the level the brightest tenth of the
+area exceeds. That is deliberate. A plain average would look at a dark meeting window
+holding one searing white document and call it a comfortable mid-grey — which is the exact
+situation this app exists for.
+
+Readings are smoothed and small changes are ignored, so the tint settles over a few seconds
+rather than flickering along with the video. Measured on this machine: about **1.4–2% of one
+core**, and a jump from dark to blazing white settles in about **4 seconds**.
+
+### Does it read my screen?
+
+Yes — that specific rectangle, and only to count brightness. Each sample is reduced
+immediately to a 256-bin histogram and the pixels are discarded. Nothing is stored, written
+to disk, or sent anywhere. There is no network code in this app at all.
+
+Sampling leans on the same `WDA_EXCLUDEFROMCAPTURE` that hides the panel from screen
+sharing: it hides the tint from *our own* capture too, so AutoTint measures the real content
+rather than its own dimming. Without that, dimming would darken the reading, which would
+reduce the dimming, and the tint would visibly oscillate.
+
+One consequence worth knowing: DRM-protected video captures as black, so auto-adjust reads
+it as dark and applies no tint. It fails safe, but it does fail.
+
 ## Good to know
 
 - **Quit from the tray icon.** The window is frameless and deliberately stays out of the
@@ -94,7 +139,7 @@ Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
 dotnet run --project src/AutoTint    # run it
-dotnet test                          # 56 unit tests
+dotnet test                          # 76 unit tests
 ```
 
 ### Publishing
@@ -155,8 +200,8 @@ size.
 ```
 src/AutoTint/
   Views/      OverlayWindow — chrome, hit-test hook, state — and its styles
-  Interop/    P/Invoke, hit-test resolver, click-through, hotkey, window discovery
-  Services/   settings, bounds validation, tray icon, auto-snap
+  Interop/    P/Invoke, hit-test resolver, click-through, hotkey, window and screen reading
+  Services/   settings, bounds validation, tray icon, auto-snap, auto-adjust
   Models/     AppSettings, TintPreset
 tests/AutoTint.Tests/
 ```
@@ -172,8 +217,8 @@ Two environment variables, for development:
 
 ## Not there yet
 
-Auto-hiding tab · multiple panels · start with Windows · scheduled or automatic tinting,
-which is what the *Auto* in the name is still holding a place for.
+Auto-hiding tab · multiple panels · start with Windows · tinting on a schedule or by time
+of day · adjusting the tint *colour* automatically as well as its strength.
 
 ---
 

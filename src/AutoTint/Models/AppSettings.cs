@@ -41,6 +41,16 @@ internal sealed class AppSettings
     /// <summary>Whether the panel lines itself up with the window beneath it.</summary>
     public bool AutoSnap { get; set; }
 
+    /// <summary>Whether the tint strength follows the brightness of what it covers.</summary>
+    public bool AutoLevel { get; set; }
+
+    /// <summary>
+    /// Slider position while auto-adjust is on, where it means "how bright will I tolerate
+    /// the result being" rather than an opacity. Kept apart from <see cref="Strength"/> so
+    /// switching modes does not overwrite the manual setting with a target, or vice versa.
+    /// </summary>
+    public double AutoTarget { get; set; } = 50;
+
     /// <summary>Derived, so it has no business being written to the file.</summary>
     [JsonIgnore]
     public bool HasBounds =>

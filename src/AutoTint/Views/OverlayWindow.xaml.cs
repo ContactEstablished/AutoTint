@@ -28,6 +28,7 @@ public partial class OverlayWindow : Window
     private HwndSource? _source;
     private ClickThroughController? _clickThrough;
     private SnapController? _snap;
+    private AutoLevelController? _autoLevel;
     private GlobalHotkey? _hotkey;
     private IntPtr _hwnd;
     private IntPtr _moveCursor;
@@ -36,6 +37,13 @@ public partial class OverlayWindow : Window
     private bool _captureProtected = true;
     private bool _restoring = true;
     private bool _shuttingDown;
+    private bool _switchingMode;
+
+    /// <summary>
+    /// Explicit on/off state. Under auto-adjust the slider holds a comfort target rather
+    /// than an opacity, so "is the tint on" can no longer be read off the slider.
+    /// </summary>
+    private bool _tintEnabled = true;
 
     internal OverlayWindow(AppSettings settings, SettingsStore store)
     {
@@ -46,11 +54,12 @@ public partial class OverlayWindow : Window
 
         PowerButton.Click += (_, _) => ToggleTint();
         ExpandButton.Click += (_, _) => SetExpanded(SettingsPanel.Visibility != Visibility.Visible);
+        AutoButton.Click += (_, _) => SetAutoLevel(!IsAutoOn);
         SnapButton.Click += (_, _) => SetAutoSnap(!(_snap?.IsEnabled ?? false));
         CaptureButton.Click += (_, _) => SetCaptureProtection(!_captureProtected);
         MenuButton.Click += (_, _) => ShowMenu();
 
-        OpacitySlider.ValueChanged += (_, e) => ApplyStrength(e.NewValue);
+        OpacitySlider.ValueChanged += (_, e) => OnSliderChanged(e.NewValue);
 
         SwatchBlack.Checked += (_, _) => ApplyColour(TintPreset.Black);
         SwatchWarm.Checked += (_, _) => ApplyColour(TintPreset.Warm);
@@ -69,7 +78,9 @@ public partial class OverlayWindow : Window
     /// <summary>Raised when the tint is switched on or off, so the tray label can follow.</summary>
     internal event Action<bool>? TintStateChanged;
 
-    internal bool IsTintOn => OpacitySlider.Value > 0;
+    internal bool IsTintOn => IsAutoOn ? _tintEnabled : OpacitySlider.Value > 0;
+
+    private bool IsAutoOn => _autoLevel?.IsEnabled == true;
 
     internal bool HotkeyRegistered { get; private set; }
 
@@ -99,12 +110,35 @@ public partial class OverlayWindow : Window
         _snap = new SnapController(_hwnd, PanelBoundsPx, TabHeightPx, MinimumSizePx, ApplyBoundsPx);
         _snap.NoTargetFound += FlashSnapButton;
 
+        _autoLevel = new AutoLevelController(
+            _hwnd, TintRegionPx, CurrentTintLuma, CurrentTargetLuma, ApplyComputedOpacity);
+
+        // Sampling a hidden window would measure whatever is behind it, to no purpose.
+        IsVisibleChanged += (_, e) =>
+        {
+            if ((bool)e.NewValue) _autoLevel?.Resume();
+            else _autoLevel?.Suspend();
+        };
+
         SetCaptureProtection(_settings.HideFromCapture);
 
-        // Deferred: snapping needs the tab's measured height, which layout has not produced yet.
+        // Deferred: snapping and sampling both need the tab's measured height, which layout
+        // has not produced yet.
+        //
+        // Read the wanted values now rather than inside the callback. Persist() rewrites
+        // these fields from live UI state, and the layout pass raises SizeChanged -- and so
+        // a Persist -- before this callback runs, which would overwrite both flags with the
+        // "off" they currently hold and silently discard what was restored from disk.
+        bool restoreAutoSnap = _settings.AutoSnap;
+        bool restoreAutoLevel = _settings.AutoLevel;
+
         Dispatcher.BeginInvoke(
             DispatcherPriority.Loaded,
-            new Action(() => SetAutoSnap(_settings.AutoSnap)));
+            new Action(() =>
+            {
+                SetAutoSnap(restoreAutoSnap);
+                SetAutoLevel(restoreAutoLevel);
+            }));
 
         if (_settings.HotkeyEnabled)
         {
@@ -139,6 +173,7 @@ public partial class OverlayWindow : Window
     protected override void OnClosed(EventArgs e)
     {
         _hotkey?.Dispose();
+        _autoLevel?.Dispose();
         _snap?.Dispose();
         _clickThrough?.Dispose();
         _source?.RemoveHook(WndProc);
@@ -202,11 +237,16 @@ public partial class OverlayWindow : Window
             _settings.BoundsHeight = r.Height;
         }
 
-        _settings.Strength = OpacitySlider.Value;
+        if (!IsAutoOn) _settings.Strength = OpacitySlider.Value;
         _settings.StrengthBeforeOff = _strengthBeforeOff;
         _settings.Expanded = SettingsPanel.Visibility == Visibility.Visible;
         _settings.HideFromCapture = _captureProtected;
         _settings.AutoSnap = _snap?.IsEnabled ?? false;
+        _settings.AutoLevel = IsAutoOn;
+
+        // The slider means different things in the two modes; do not let one overwrite
+        // the other's saved value.
+        if (IsAutoOn) _settings.AutoTarget = OpacitySlider.Value;
         _settings.ColourId = CurrentColourId();
 
         _store.Save(_settings);
@@ -220,6 +260,21 @@ public partial class OverlayWindow : Window
     }
 
     // ---- Tint -------------------------------------------------------------------------
+
+    private void OnSliderChanged(double value)
+    {
+        if (_switchingMode) return;
+
+        if (IsAutoOn)
+        {
+            // The slider is the comfort target here, not the opacity.
+            _autoLevel!.Recompute();
+            Persist();
+            return;
+        }
+
+        ApplyStrength(value);
+    }
 
     private void ApplyStrength(double percent)
     {
@@ -243,6 +298,27 @@ public partial class OverlayWindow : Window
     /// </summary>
     internal void ToggleTint()
     {
+        if (IsAutoOn)
+        {
+            // Auto must not immediately undo a deliberate switch-off, so it stands down
+            // rather than carrying on sampling.
+            _tintEnabled = !_tintEnabled;
+
+            if (_tintEnabled)
+            {
+                _autoLevel!.Resume();
+                _autoLevel.RequestImmediateUpdate();
+            }
+            else
+            {
+                _autoLevel!.Suspend();
+                ApplyComputedOpacity(0);
+            }
+
+            TintStateChanged?.Invoke(_tintEnabled);
+            return;
+        }
+
         if (OpacitySlider.Value > 0)
         {
             _strengthBeforeOff = OpacitySlider.Value;
@@ -324,6 +400,83 @@ public partial class OverlayWindow : Window
         Persist();
         return true;
     }
+
+    // ---- Auto-adjust ------------------------------------------------------------------
+
+    private void SetAutoLevel(bool enabled)
+    {
+        if (_autoLevel is null || _autoLevel.IsEnabled == enabled) return;
+
+        _switchingMode = true;
+        try
+        {
+            OpacitySlider.Value = Math.Clamp(
+                enabled ? _settings.AutoTarget : _settings.Strength,
+                OpacitySlider.Minimum,
+                OpacitySlider.Maximum);
+
+            if (!enabled)
+            {
+                // Release the animation, or later direct writes to Opacity are ignored
+                // because the held animation keeps winning.
+                TintSurface.BeginAnimation(OpacityProperty, null);
+            }
+        }
+        finally
+        {
+            _switchingMode = false;
+        }
+
+        _tintEnabled = true;
+        _autoLevel.SetEnabled(enabled);
+
+        if (!enabled) ApplyStrength(OpacitySlider.Value);
+
+        AutoButton.Background = enabled
+            ? (Brush)FindResource("TabSunkenBrush")
+            : Brushes.Transparent;
+        AutoButton.ToolTip = enabled
+            ? "Auto-adjust on -- the slider sets how bright to leave things"
+            : "Auto-adjust off -- the slider sets tint strength directly";
+        OpacitySlider.ToolTip = enabled ? "How bright to leave the result" : "Tint strength";
+
+        Persist();
+    }
+
+    /// <summary>
+    /// Applies an opacity chosen by auto-adjust. Deliberately does not touch the slider or
+    /// persist: this is derived state, not a preference, and writing it every sample would
+    /// turn the settings debounce into a disk write twice a second.
+    /// </summary>
+    private void ApplyComputedOpacity(double percent)
+    {
+        TintSurface.BeginAnimation(OpacityProperty, new DoubleAnimation
+        {
+            To = percent / 100.0,
+            Duration = TimeSpan.FromMilliseconds(250),
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+        });
+
+        OpacityReadout.Text = _tintEnabled
+            ? string.Create(CultureInfo.CurrentCulture, $"auto {Math.Round(percent)}%")
+            : "off";
+        PowerButton.Opacity = _tintEnabled ? 1.0 : 0.55;
+    }
+
+    /// <summary>The region the tint actually covers: the window less the tab below it.</summary>
+    private NativeMethods.RECT TintRegionPx()
+    {
+        NativeMethods.GetWindowRect(_hwnd, out NativeMethods.RECT bounds);
+        bounds.Bottom -= TabHeightPx();
+        return bounds;
+    }
+
+    private double CurrentTintLuma() =>
+        TintSurface.Background is SolidColorBrush brush
+            ? AutoLevelMath.LumaOf(brush.Color)
+            : 0;
+
+    private double CurrentTargetLuma() => AutoLevelMath.TargetForSlider(OpacitySlider.Value);
 
     // ---- Auto-snap --------------------------------------------------------------------
 
@@ -411,6 +564,7 @@ public partial class OverlayWindow : Window
             case NativeMethods.WM_ENTERSIZEMOVE:
                 _clickThrough?.SuspendForSizeMove();
                 _snap?.Suspend();
+                _autoLevel?.Suspend();
                 return IntPtr.Zero;
 
             case NativeMethods.WM_EXITSIZEMOVE:
@@ -418,6 +572,8 @@ public partial class OverlayWindow : Window
                 // The panel has just been dropped somewhere new, so it looks for a new
                 // window to line up with rather than returning to its previous one.
                 _snap?.ResumeAndRetarget();
+                _autoLevel?.Resume();
+                _autoLevel?.RequestImmediateUpdate();
                 return IntPtr.Zero;
 
             default:
