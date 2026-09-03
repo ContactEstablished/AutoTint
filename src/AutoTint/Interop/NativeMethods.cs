@@ -66,6 +66,12 @@ internal static partial class NativeMethods
     internal const uint MONITOR_DEFAULTTONULL = 0x00000000;
 
     /// <summary>
+    /// MonitorFromWindow: a window straddling two displays is reported against the one it
+    /// overlaps most, which is the same monitor a person would say it is on.
+    /// </summary>
+    internal const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+
+    /// <summary>
     /// StretchBlt sub-sampling. Measured against HALFTONE it is twice as fast and, for a
     /// statistical reading, more faithful: HALFTONE averages fine bright detail away, while
     /// dropping pixels preserves the distribution the percentile is taken over.
@@ -117,6 +123,19 @@ internal static partial class NativeMethods
         public int Y;
     }
 
+    /// <summary>
+    /// <c>rcWork</c> is the monitor less the taskbar and any other docked appbars, and is
+    /// the rectangle worth filling. <c>rcMonitor</c> is the whole display.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MONITORINFO
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
     [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static partial bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
@@ -150,6 +169,13 @@ internal static partial class NativeMethods
 
     [LibraryImport("user32.dll")]
     internal static partial IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [LibraryImport("user32.dll")]
+    internal static partial IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetMonitorInfoW", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static partial bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);
 
     [LibraryImport("user32.dll")]
     internal static partial IntPtr WindowFromPoint(POINT Point);
@@ -233,6 +259,25 @@ internal static partial class NativeMethods
     /// <summary>True when the given screen pixel falls on some connected monitor.</summary>
     internal static bool IsPointOnAMonitor(int x, int y) =>
         MonitorFromPoint(new POINT { X = x, Y = y }, MONITOR_DEFAULTTONULL) != IntPtr.Zero;
+
+    /// <summary>
+    /// The work area -- the monitor less its taskbar -- of the display the given window is
+    /// mostly on, in physical pixels. Returns false rather than an empty rectangle when the
+    /// display cannot be identified, so a caller reads that as "leave the window alone".
+    /// </summary>
+    internal static bool TryGetWorkArea(IntPtr hWnd, out RECT workArea)
+    {
+        workArea = default;
+
+        IntPtr monitor = MonitorFromWindow(hWnd, MONITOR_DEFAULTTONEAREST);
+        if (monitor == IntPtr.Zero) return false;
+
+        var info = new MONITORINFO { cbSize = Marshal.SizeOf<MONITORINFO>() };
+        if (!GetMonitorInfo(monitor, ref info)) return false;
+
+        workArea = info.rcWork;
+        return workArea.Width > 0 && workArea.Height > 0;
+    }
 
     /// <summary>True while the physical left mouse button is held down.</summary>
     internal static bool IsLeftButtonDown() => (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;

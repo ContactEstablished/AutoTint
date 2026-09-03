@@ -22,6 +22,9 @@ internal sealed class TrayIcon : IDisposable
         _toggleItem = new Forms.ToolStripMenuItem("Turn tint off");
         _toggleItem.Click += (_, _) => ToggleRequested?.Invoke();
 
+        var fillItem = new Forms.ToolStripMenuItem("Fill this monitor");
+        fillItem.Click += (_, _) => FillMonitorRequested?.Invoke();
+
         var resetItem = new Forms.ToolStripMenuItem("Reset size and position");
         resetItem.Click += (_, _) => ResetRequested?.Invoke();
 
@@ -43,6 +46,7 @@ internal sealed class TrayIcon : IDisposable
 
         var menu = new Forms.ContextMenuStrip();
         menu.Items.Add(_toggleItem);
+        menu.Items.Add(fillItem);
         menu.Items.Add(resetItem);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(_captureItem);
@@ -64,6 +68,8 @@ internal sealed class TrayIcon : IDisposable
     internal event Action? ToggleRequested;
 
     internal event Action? ResetRequested;
+
+    internal event Action? FillMonitorRequested;
 
     internal event Action? QuitRequested;
 

@@ -43,6 +43,7 @@ public partial class App : System.Windows.Application
         _tray = new TrayIcon(OverlayWindow.AppVersion);
         _tray.ToggleRequested += () => _overlay.ToggleTint();
         _tray.ResetRequested += () => _overlay.ResetBounds();
+        _tray.FillMonitorRequested += () => _overlay.FillCurrentMonitor();
         _tray.QuitRequested += Shutdown;
         _tray.CaptureProtectionChanged += enabled => _overlay.SetCaptureProtection(enabled);
 

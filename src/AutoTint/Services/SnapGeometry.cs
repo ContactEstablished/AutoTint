@@ -38,4 +38,23 @@ internal static class SnapGeometry
         // Extra height goes downward: the top edge is the one that has to match.
         return new SnapBounds(left, targetTop, width, height);
     }
+
+    /// <summary>
+    /// Bounds that spread the panel over one whole monitor. The window takes the work area
+    /// exactly, which leaves the tab in the strip along its bottom and the tint over
+    /// everything above.
+    ///
+    /// Filling the <em>work area</em> rather than the monitor is deliberate twice over: the
+    /// taskbar is not a glare source worth dimming, and covering the display outright would
+    /// push the tab off the bottom edge, leaving the tray icon as the only way back to the
+    /// controls.
+    /// </summary>
+    internal static SnapBounds ForMonitor(
+        int workLeft,
+        int workTop,
+        int workWidth,
+        int workHeight,
+        int minWidth,
+        int minHeight) =>
+        new(workLeft, workTop, Math.Max(workWidth, minWidth), Math.Max(workHeight, minHeight));
 }

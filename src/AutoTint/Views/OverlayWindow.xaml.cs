@@ -414,6 +414,10 @@ public partial class OverlayWindow : Window
         startup.Click += (_, _) => SetRunAtLogon(startup.IsChecked);
         menu.Items.Add(startup);
 
+        var fill = new MenuItem { Header = "Fill this monitor" };
+        fill.Click += (_, _) => FillCurrentMonitor();
+        menu.Items.Add(fill);
+
         var reset = new MenuItem { Header = "Reset size and position" };
         reset.Click += (_, _) => ResetBounds();
         menu.Items.Add(reset);
@@ -449,6 +453,29 @@ public partial class OverlayWindow : Window
         Height = 400;
         Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
         Top = (SystemParameters.PrimaryScreenHeight - Height) / 2;
+    }
+
+    /// <summary>
+    /// Spreads the panel over the monitor it is currently on, for when the glare is the
+    /// whole screen rather than one window on it. Which monitor is decided by where the
+    /// panel already is, so choosing a different one is a matter of dragging it there first.
+    ///
+    /// Auto-snap is switched off on the way out of courtesy to itself: left on, its next
+    /// tick would find a window under the panel's centre and shrink straight back onto it.
+    /// </summary>
+    internal void FillCurrentMonitor()
+    {
+        if (_hwnd == IntPtr.Zero) return;
+        if (!NativeMethods.TryGetWorkArea(_hwnd, out NativeMethods.RECT work)) return;
+
+        SetAutoSnap(false);
+
+        (int minWidth, int minHeight) = MinimumSizePx();
+        ApplyBoundsPx(SnapGeometry.ForMonitor(
+            work.Left, work.Top, work.Width, work.Height, minWidth, minHeight));
+
+        // What the panel covers has changed wholesale rather than drifted.
+        _autoLevel?.RequestImmediateUpdate();
     }
 
     /// <summary>

@@ -49,7 +49,7 @@ tint, so you can always find your way back.
 | Slider | Tint strength, 0–90% — or, with auto-adjust on, how bright to leave things |
 | Swatches | Neutral black, warm amber, soft grey |
 | 👁 | Hide the tint from screen sharing |
-| ⚙ | Start with Windows, reset position, or quit |
+| ⚙ | Start with Windows, fill the monitor, reset position, or quit |
 | Scroll wheel over the tab | Nudge strength by 5% |
 | **Alt+Shift+T** | Toggle from anywhere, even while the meeting app has focus |
 
@@ -127,6 +127,14 @@ it as dark and applies no tint. It fails safe, but it does fail.
 - **Quit from the tray icon.** The window is frameless and deliberately stays out of the
   taskbar and Alt+Tab, so the tray is the reliable way out. On Windows 11 new tray icons
   start in the `^` overflow flyout — drag it onto the taskbar to keep it visible.
+- **Filling a whole monitor is one menu item.** When the glare is the entire screen
+  rather than one window on it, ⚙ › *Fill this monitor* — or the same item on the tray
+  icon — spreads the panel over whichever display it is currently on, so switching
+  displays is a matter of dragging it there first. It takes the *work area* rather than
+  the whole screen: the taskbar is not a glare source worth dimming, and filling the
+  display outright would push the tab off the bottom edge and leave the tray icon as the
+  only way back to the controls. Auto-snap switches itself off on the way — left on, its
+  next tick would find a window under the panel and shrink straight back onto it.
 - **Sharing your screen? Nobody else sees the tint.** Hide-from-screen-share is on by
   default, so other attendees get the original, undimmed picture. It hides the tint from
   your own screenshots too, which surprises people the first time.
@@ -171,7 +179,7 @@ Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
 dotnet run --project src/AutoTint    # run it
-dotnet test                          # 89 unit tests
+dotnet test                          # 94 unit tests
 ```
 
 ### Publishing by hand
